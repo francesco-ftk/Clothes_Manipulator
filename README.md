@@ -1,0 +1,2 @@
+# Clothes_Manipulator
+COMPUTER VISION and INTELLIGENT MULTIMEDIA RECOGNITION Project Exam
