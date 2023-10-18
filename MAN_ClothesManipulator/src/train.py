@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from MAN_ClothesManipulator.src.data_supplier import DataSupplier
+from MAN_ClothesManipulator.src.optimized_data_supplier import OptimizedDataSupplier
 from MAN_ClothesManipulator.src.task.clothesManipulatorTask import ClothesManipulatorModelTraining, \
     ClothesManipulatroTaskParams
 
@@ -16,7 +17,7 @@ TASKS = {
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # print("DEVICE:", device)
 
-PATH = '../nets/last.pth'
+SAVING_PATH = '../nets/last.pth'
 
 
 def init_model(args):
@@ -34,46 +35,45 @@ def clip_grads(net):
         p.grad.data.clamp_(-10, 10)
 
 
-def train_batch(net, criterion, optimizer, data_supplier):
+def train_batch(net, criterion, optimizer, data_supplier, sample_distance):
     """ Trains a single batch. """
     optimizer.zero_grad()
-    ok, q_id, t_id = data_supplier.get_next_pair_sample(8)
-    if ok:
-        q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
-        control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, 8)  # input 151
+    ok = False
+    while not ok:
+        ok, q_id, t_id = data_supplier.get_next_pair_sample(sample_distance)
+        if ok:
+            q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
+            control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, sample_distance)  # input 151
 
-        target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
-        query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
-        net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
+            target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
+            query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
+            net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
 
-        inp_seq_len = net_inputs.size(0)
-        outp_seq_len, batch_size, _ = target.size()
+            inp_seq_len = net_inputs.size(0)
+            outp_seq_len, batch_size, _ = target.size()
 
-        # New sequence
-        net.init_sequence_query(batch_size, query)
+            # New sequence
+            net.init_sequence_query(batch_size, query)
 
-        # Feed the sequence
-        for i in range(inp_seq_len):
-            net(net_inputs[i])  # when call net() method -> call forward method
+            # Feed the sequence
+            for i in range(inp_seq_len):
+                net(net_inputs[i])  # Quando chiamo net() -> chiamo il metodo forward
 
-        net_memory = net.get_memory()
-        memory = torch.reshape(net_memory.memory, (12, 1, 340))
+            net_memory = net.get_memory()
+            memory = torch.reshape(net_memory.memory, (12, 1, 340))
 
-        loss = criterion(memory, target)
-        loss.backward()
-        clip_grads(net)
-        optimizer.step()
-        return loss.item() / batch_size
-    else:
-        print("sample not found")
-        return -1
+            loss = criterion(memory, target)
+            loss.backward()
+            clip_grads(net)
+            optimizer.step()
+            return loss.item() / batch_size
 
 
-def train_model(model, data_supplier):
+def train_model(model, data_supplier, optimized_data_supplier):
     # Writer will output to ./runs/ directory by default
     writer = SummaryWriter("../tensorboard/runs")
 
-    epochs = 200
+    epochs = 500
     num_batches = 200
 
     print("Start Training!")
@@ -82,11 +82,15 @@ def train_model(model, data_supplier):
         print('***** Running Epoch: ', i, ' *****')
         losses = []
         for j in range(num_batches):
-            loss = train_batch(model.net, model.criterion, model.optimizer, data_supplier)
-            losses += [loss]
+            if j % 2 == 0:
+                loss = train_batch(model.net, model.criterion, model.optimizer, data_supplier, 3)
+                losses += [loss]
+            else:
+                loss = train_batch(model.net, model.criterion, model.optimizer, optimized_data_supplier, 1)
+                losses += [loss]
         writer.add_scalars('Loss', {'trainset': np.array(losses).mean()}, i + 1)
 
-    torch.save(model.net.state_dict(), PATH)
+    torch.save(model.net.state_dict(), SAVING_PATH)
     writer.close()  # tensorboard --logdir=../tensorboard/runs
 
     print("Done Training!")
@@ -103,11 +107,12 @@ def main():
     # Initialize the model
     model = init_model(task)  # MODEL
     data_supplier = DataSupplier(file_root, img_root_path, dis_feat_root, mode, False)
+    optimized_data_supplier = OptimizedDataSupplier(file_root, img_root_path, dis_feat_root, mode, False)
 
-    path = '../nets/300_200.pth'
-    model.net.load_state_dict(torch.load(path))
+    # path = '../nets/last.pth'
+    # model.net.load_state_dict(torch.load(path))
 
-    train_model(model, data_supplier)  # TRAIN
+    train_model(model, data_supplier, optimized_data_supplier)  # TRAIN
 
 
 if __name__ == '__main__':

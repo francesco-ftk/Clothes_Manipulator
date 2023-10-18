@@ -1,4 +1,4 @@
-# Used to extract all features from dataset (ADDE)
+# Used to extract all features from dataset Shopping100k
 
 import numpy as np
 from tqdm import tqdm
@@ -8,6 +8,7 @@ from dataloader import Data
 from model import Extractor
 import constants as C
 
+MODE = 'train'  # 'test'
 
 if not torch.cuda.is_available():
     print('Warning: Using CPU')
@@ -24,7 +25,7 @@ gallery_data = Data(file_root, img_root_path,
                         transforms.Resize((C.TARGET_IMAGE_SIZE, C.TARGET_IMAGE_SIZE)),
                         transforms.ToTensor(),
                         transforms.Normalize(mean=C.IMAGE_MEAN, std=C.IMAGE_STD)
-                    ]), mode='train')  # test
+                    ]), mode=MODE)  # test
 
 gallery_loader = torch.utils.data.DataLoader(gallery_data, batch_size=64, shuffle=False,
                                              sampler=torch.utils.data.SequentialSampler(gallery_data),

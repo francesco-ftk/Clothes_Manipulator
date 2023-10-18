@@ -37,6 +37,8 @@ for i in range(disentangled_features_test.shape[0]):
     if current_min < min:
         min = current_min
 
+print("Max: ", max, " - Min: ", min)
+
 gallery_data = Data(file_root, img_root_path,
                     transforms.Compose([
                         transforms.Resize((C.TARGET_IMAGE_SIZE, C.TARGET_IMAGE_SIZE)),

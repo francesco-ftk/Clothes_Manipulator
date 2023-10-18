@@ -1,3 +1,7 @@
+"""
+ The "get_next_pair_sample" method return a couple of samples at distance less or equal to "max_distance_between_pair"
+"""
+
 import numpy as np
 import torchvision.transforms as transforms
 import MAN_ClothesManipulator.src.constants as C
@@ -88,46 +92,6 @@ class DataSupplier:
         else:
             return False
 
-    def get_next_pair_sample_exact(self, distance_between_pair):
-        labels = self.data.label_data
-        q, t = self.find_couple(labels, distance_between_pair)  # query = start image, target = wanted image
-
-        if q != -1 and t != -1:
-            return True, q, t
-
-        return False, q, t
-
-    def find_couple_exact(self, labels, distance_between_pair):
-        n_labels = labels.shape[0]
-        cut_index_np = np.array(cut_index)
-
-        found_q = -1
-        found_t = -1
-
-        q_indexes = np.arange(n_labels)
-        np.random.shuffle(q_indexes)
-
-        for q_id in q_indexes:
-            t_indexes = np.arange(n_labels)  # [0, 1, ..., n_labels]
-            np.random.shuffle(t_indexes)
-            for t_id in t_indexes:
-                if not np.array_equal(labels[q_id], labels[t_id]):
-                    if self.is_exact_distance(labels[q_id], labels[t_id], cut_index_np, distance_between_pair):
-                        found_q = q_id
-                        found_t = t_id
-                        return found_q, found_t  # Contain id of two images with =N distance
-
-    def is_exact_distance(self, q_lbl, t_lbl, cut_index_np, distance_between_pair):
-        multi_manip = np.subtract(q_lbl, t_lbl)
-        distance = 0
-        for ci in cut_index_np:
-            if np.any(multi_manip[ci[0]:ci[1]]):  # return false if [0, 0, ..., 0], true if [-1, 0, 1, 0 ..., 0]
-                distance += 1
-        if distance == distance_between_pair:
-            return True
-        else:
-            return False
-
     def get_disentangled_features(self, q_id, t_id):
         q_dis_feat = self.dis_feat_file[q_id]
         t_dis_feat = self.dis_feat_file[t_id]
@@ -157,19 +121,6 @@ class DataSupplier:
 
     def cosine_similarity(self, dis_feat, target_feat):
         return np.dot(target_feat, dis_feat) / (norm(target_feat) * norm(dis_feat))
-
-    def find_ten_ids_images_more_similiar(self, dis_feat):
-        ten_ids = []
-        for j in range(10):
-            max = -2
-            for i in range(self.data.__len__()):
-                if i not in ten_ids:
-                    curr_cs = self.cosine_similarity(dis_feat, self.dis_feat_file[i])
-                    if curr_cs > max:
-                        max = curr_cs
-                        best_id = i
-            ten_ids.append(best_id)
-        return ten_ids
 
     def find_x_ids_images_more_similiar(self, dis_feat, x):
         x_ids = []

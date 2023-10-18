@@ -1,18 +1,16 @@
 """ Testing for the Clothes Manipulator in Neural Turing Machines. """
 
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
 
 from MAN_ClothesManipulator.src.data_supplier import DataSupplier
+from MAN_ClothesManipulator.src.optimized_data_supplier import OptimizedDataSupplier
 from MAN_ClothesManipulator.src.task.clothesManipulatorTask import ClothesManipulatorModelTraining, \
     ClothesManipulatroTaskParams
 
 TASKS = {
     'clothesManipulatorTask': (ClothesManipulatorModelTraining, ClothesManipulatroTaskParams),
 }
-
-PATH = '../nets/500_200.pth'
 
 
 def init_model(args):
@@ -23,7 +21,7 @@ def init_model(args):
     return model
 
 
-def evaluate_model(model, data_supplier):
+def evaluate_model(model, data_supplier, distance):
     ten_correct = 0
     twenty_correct = 0
     thirty_correct = 0
@@ -34,56 +32,56 @@ def evaluate_model(model, data_supplier):
     with torch.no_grad():
         for j in range(num_tests):
             print(j, "/", num_tests)
-            ok, q_id, t_id = data_supplier.get_next_pair_sample(8)  # data_supplier.get_next_pair_sample_exact(1)
-            if ok:
-                q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
-                control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, 8)  # input 151
+            ok = False
+            while not ok:
+                ok, q_id, t_id = data_supplier.get_next_pair_sample(distance)  # data_supplier.get_next_pair_sample_exact(1)
+                if ok:
+                    q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
+                    control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, distance)  # input 151
 
-                target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
-                query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
-                net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
+                    target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
+                    query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
+                    net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
 
-                inp_seq_len = net_inputs.size(0)
-                outp_seq_len, batch_size, _ = target.size()
+                    inp_seq_len = net_inputs.size(0)
+                    outp_seq_len, batch_size, _ = target.size()
 
-                # New sequence
-                model.net.init_sequence_query(batch_size, query)
+                    # New sequence
+                    model.net.init_sequence_query(batch_size, query)
 
-                # Feed the sequence + delimiter
-                for i in range(inp_seq_len):
-                    model.net(net_inputs[i])
+                    # Feed the sequence + delimiter
+                    for i in range(inp_seq_len):
+                        model.net(net_inputs[i])
 
-                net_memory = model.net.get_memory()
-                memory = net_memory.memory.numpy().reshape(4080)
+                    net_memory = model.net.get_memory()
+                    memory = net_memory.memory.numpy().reshape(4080)
 
-                t_one_hot = data_supplier.get_on_hot_label(t_id)
-                best_ids = data_supplier.find_x_ids_images_more_similiar(memory, 50)
-                for i in range(50):
-                    curr_one_hot = data_supplier.get_on_hot_label(best_ids[i])
-                    if (curr_one_hot == t_one_hot).all():
-                        if i < 10:
-                            ten_correct += 1
-                            twenty_correct += 1
-                            thirty_correct += 1
-                            fourty_correct += 1
-                            fifty_correct += 1
-                        elif i < 20:
-                            twenty_correct += 1
-                            thirty_correct += 1
-                            fourty_correct += 1
-                            fifty_correct += 1
-                        elif i < 30:
-                            thirty_correct += 1
-                            fourty_correct += 1
-                            fifty_correct += 1
-                        elif i < 40:
-                            fourty_correct += 1
-                            fifty_correct += 1
-                        else:
-                            fifty_correct += 1
-                        break
-            else:
-                print("sample not found")
+                    t_one_hot = data_supplier.get_on_hot_label(t_id)
+                    best_ids = data_supplier.find_x_ids_images_more_similiar(memory, 50)
+                    for i in range(50):
+                        curr_one_hot = data_supplier.get_on_hot_label(best_ids[i])
+                        if (curr_one_hot == t_one_hot).all():
+                            if i < 10:
+                                ten_correct += 1
+                                twenty_correct += 1
+                                thirty_correct += 1
+                                fourty_correct += 1
+                                fifty_correct += 1
+                            elif i < 20:
+                                twenty_correct += 1
+                                thirty_correct += 1
+                                fourty_correct += 1
+                                fifty_correct += 1
+                            elif i < 30:
+                                thirty_correct += 1
+                                fourty_correct += 1
+                                fifty_correct += 1
+                            elif i < 40:
+                                fourty_correct += 1
+                                fifty_correct += 1
+                            else:
+                                fifty_correct += 1
+                            break
 
     print("Top-10: ", (ten_correct / num_tests) * 100, "%")
     print("Top-20: ", (twenty_correct / num_tests) * 100, "%")
@@ -100,65 +98,64 @@ def normalizeImage(img):
     return (numpy_img - min) / (max - min)
 
 
-def visual_evaluate_model(model, data_supplier):
+def visual_evaluate_model(model, data_supplier, distance):
     num_tests = 1
 
     with torch.no_grad():
         for j in range(num_tests):
             print(j, "/", num_tests)
-            ok, q_id, t_id = data_supplier.get_next_pair_sample(8)  # data_supplier.get_next_pair_sample_exact(1)
-            if ok:
-                q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
-                control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, 8)  # input 151
+            ok = False
+            while not ok:
+                ok, q_id, t_id = data_supplier.get_next_pair_sample(distance)  # data_supplier.get_next_pair_sample_exact(1)
+                if ok:
+                    q_dis_feat, t_dis_feat = data_supplier.get_disentangled_features(q_id, t_id)
+                    control, manip_vectors = data_supplier.get_manipulation_vectors(q_id, t_id, distance)  # input 151
 
-                target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
-                query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
-                net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
+                    target = torch.reshape(torch.from_numpy(t_dis_feat), (12, 1, 340))
+                    query = torch.reshape(torch.from_numpy(q_dis_feat), (1, 12, 340))
+                    net_inputs = torch.reshape(torch.from_numpy(manip_vectors), (len(manip_vectors), 1, 151)).float()
 
-                inp_seq_len = net_inputs.size(0)
-                print("Distance: ", inp_seq_len)
-                outp_seq_len, batch_size, _ = target.size()
+                    inp_seq_len = net_inputs.size(0)
+                    print("Distance: ", inp_seq_len)
+                    outp_seq_len, batch_size, _ = target.size()
 
-                # New sequence
-                model.net.init_sequence_query(batch_size, query)
+                    # New sequence
+                    model.net.init_sequence_query(batch_size, query)
 
-                # Feed the sequence + delimiter
-                for i in range(inp_seq_len):
-                    model.net(net_inputs[i])
+                    # Feed the sequence + delimiter
+                    for i in range(inp_seq_len):
+                        model.net(net_inputs[i])
 
-                net_memory = model.net.get_memory()
-                memory = net_memory.memory.numpy().reshape(4080)
+                    net_memory = model.net.get_memory()
+                    memory = net_memory.memory.numpy().reshape(4080)
 
-                best_ids = data_supplier.find_x_ids_images_more_similiar(memory, 10)
+                    best_ids = data_supplier.find_x_ids_images_more_similiar(memory, 10)
 
-                fig = plt.figure()
-                fig.suptitle('Visual Evaluation MAN', fontsize=16)
-                img = data_supplier.get_image(q_id)[0]
-                ax1 = fig.add_subplot(4, 5, 1)
-                ax1.set_title('query image')
-                ax1.imshow(normalizeImage(img.permute(1, 2, 0)))
-                img = data_supplier.get_image(t_id)[0]
-                ax2 = fig.add_subplot(4, 5, 6)
-                ax2.set_title('target image')
-                ax2.imshow(normalizeImage(img.permute(1, 2, 0)))
+                    fig = plt.figure()
+                    fig.suptitle('Visual Evaluation MAN', fontsize=16)
+                    img = data_supplier.get_image(q_id)[0]
+                    ax1 = fig.add_subplot(4, 5, 1)
+                    ax1.set_title('query image')
+                    ax1.imshow(normalizeImage(img.permute(1, 2, 0)))
+                    img = data_supplier.get_image(t_id)[0]
+                    ax2 = fig.add_subplot(4, 5, 6)
+                    ax2.set_title('target image')
+                    ax2.imshow(normalizeImage(img.permute(1, 2, 0)))
 
-                img = data_supplier.get_image(best_ids[0])[0]
-                ax3 = fig.add_subplot(4, 5, 11)
-                ax3.set_title('top-10')
-                ax3.imshow(normalizeImage(img.permute(1, 2, 0)))
+                    img = data_supplier.get_image(best_ids[0])[0]
+                    ax3 = fig.add_subplot(4, 5, 11)
+                    ax3.set_title('top-10')
+                    ax3.imshow(normalizeImage(img.permute(1, 2, 0)))
 
-                for i in range(1, 5):
-                    img = data_supplier.get_image(best_ids[i])[0]
-                    fig.add_subplot(4, 5, 11 + i).imshow(normalizeImage(img.permute(1, 2, 0)))
-                for i in range(5):
-                    img = data_supplier.get_image(best_ids[i + 5])[0]
-                    fig.add_subplot(4, 5, 16 + i).imshow(normalizeImage(img.permute(1, 2, 0)))
-                # plt.subplot_tool()
-                plt.subplots_adjust(hspace=0.4)
-                plt.show()
-
-            else:
-                print("sample not found")
+                    for i in range(1, 5):
+                        img = data_supplier.get_image(best_ids[i])[0]
+                        fig.add_subplot(4, 5, 11 + i).imshow(normalizeImage(img.permute(1, 2, 0)))
+                    for i in range(5):
+                        img = data_supplier.get_image(best_ids[i + 5])[0]
+                        fig.add_subplot(4, 5, 16 + i).imshow(normalizeImage(img.permute(1, 2, 0)))
+                    # plt.subplot_tool()
+                    plt.subplots_adjust(hspace=0.4)
+                    plt.show()
 
     print("Done Visual Evaluating!")
 
@@ -173,25 +170,19 @@ def main():
 
     # Initialize the model
     model = init_model(task)  # MODEL
-    data_supplier = DataSupplier(file_root, img_root_path, dis_feat_root, mode, False)
+    # data_supplier = DataSupplier(file_root, img_root_path, dis_feat_root, mode, False)
+    data_supplier = OptimizedDataSupplier(file_root, img_root_path, dis_feat_root, mode, False)
 
-    model.net.load_state_dict(torch.load(PATH))
-    # evaluate_model(model, data_supplier)
-    visual_evaluate_model(model, data_supplier)
+    path = '../nets/500_200_mix_1_3.pth'
+    model.net.load_state_dict(torch.load(path))
+    # evaluate_model(model, data_supplier, 1)
+    visual_evaluate_model(model, data_supplier, 1)
 
 
 if __name__ == '__main__':
     main()
 
 """
-
-NET 200_200  (epochs_size)
-
-Top-10:  22.0%
-Top-20:  28.9%
-Top-30:  32.0%
-Top-40:  37.0%
-Top-50:  42.0%
 
 NET 300_200
 
@@ -209,19 +200,8 @@ Top-30:  54.0%
 Top-40:  60.0%
 Top-50:  64.0%
 
-NET 200_200_norm
 
-Top-10:  0.0%
-Top-20:  0.0%
-Top-30:  0.0%
-Top-40:  0.0%
-Top-50:  0.0%
-
-"""
-
-"""
-
-NET 500_200 on 1 manipulation (100 samples)
+NET 500_200 on only 1 distance test images
 
 Top-10:  43.0 %
 Top-20:  51.0 %

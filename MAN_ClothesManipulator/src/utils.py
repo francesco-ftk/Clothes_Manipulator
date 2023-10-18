@@ -42,3 +42,50 @@ def listify_manip(multi_manip):
     manip_list = manip_list[np.random.permutation(len(manip_list))]
 
     return manip_list
+
+def split_labels(label, attr_num):
+    """
+    split the whole one-hot label into separate one-hot labels w.r.t attribute
+    """
+    labels = []
+    start_idx = 0
+    for i in attr_num:
+        sub_labels = label[start_idx:start_idx + i]
+        labels.append(sub_labels)
+        start_idx += i
+    return labels
+
+
+def get_target_attr(indicator, attr_num):
+    """
+    given the indicator vector, return the target attribute that need to be changed
+    """
+    assert 1 in indicator #sanity check, ensure target attribute exists
+    start_idx = 0
+    for i, val_num in enumerate(attr_num):
+        sub_label = indicator[start_idx:start_idx + val_num]
+        if 1 in sub_label:
+            return i
+        else:
+            start_idx += val_num
+    return -1
+
+
+def compute_DCG(scores):
+    """
+    compute the Discounteed Cumulative Gain. Check the equation in the paper
+    """
+    return np.sum(
+        np.divide(np.power(2, scores) - 1, np.log(np.arange(scores.shape[0], dtype=np.float32) + 2)),
+        dtype=np.float32)
+
+
+def compute_NDCG(rank_scores):
+    """
+    compute the Normalized Discounteed Cumulative Gain. Check the equation in the paper
+    """
+    dcg = compute_DCG(rank_scores)
+    idcg = compute_DCG(np.ones_like(rank_scores))
+    ndcg = dcg / idcg
+    return ndcg
+
