@@ -175,12 +175,13 @@ def visual_evaluate_models_step_by_step(model1, model2, data_supplier, distance,
         # Feed the sequence + delimiter
         for i in range(inp_seq_len):
             model1.net(net_inputs[i])
+            info = data_supplier.get_manipulation_info(net_inputs[i])
             net_memory = model1.net.get_memory()
             memory = net_memory.memory.numpy().reshape(4080)
             best_ids = data_supplier.find_x_ids_images_more_similiar(memory, 10)
 
             fig = plt.figure()
-            fig.suptitle('Visual Evaluation MAN - Manipulation: ' + str(i + 1), fontsize=16)
+            fig.suptitle('Visual Evaluation MAN - Manipulation: ' + str(i + 1) + '\n' + info, fontsize=16)
             img = data_supplier.get_image(q_id)[0]
             ax1 = fig.add_subplot(4, 5, 1)
             ax1.set_title('query image')
@@ -210,13 +211,14 @@ def visual_evaluate_models_step_by_step(model1, model2, data_supplier, distance,
         q_dis_feat = torch.reshape(torch.from_numpy(q_dis_feat), (1, 4080)).cuda()
         query_fused_feats = q_dis_feat
         for i in range(inp_seq_len):
+            info = data_supplier.get_manipulation_info(net_inputs[i])
             residual_feat = model2(net_inputs[i].cuda())
             query_fused_feats = F.normalize(query_fused_feats + residual_feat)
             current_result = query_fused_feats.cpu().numpy().reshape(4080)
             best_ids = data_supplier.find_x_ids_images_more_similiar(current_result, 10)
 
             fig = plt.figure()
-            fig.suptitle('Visual Evaluation ADDE-M - Manipulation: ' + str(i + 1), fontsize=16)
+            fig.suptitle('Visual Evaluation ADDE-M - Manipulation: ' + str(i + 1) + '\n' + info, fontsize=16)
             img = data_supplier.get_image(q_id)[0]
             ax1 = fig.add_subplot(4, 5, 1)
             ax1.set_title('query image')

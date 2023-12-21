@@ -12,6 +12,9 @@ from utils import listify_manip
 from numpy.linalg import norm
 
 
+from utils import ATTRIBUTES, ATTRIBUTES_VALUES
+
+
 def normalize(dis_feat, normalization):
     if normalization:
         dis_feat_normalized = (dis_feat - np.min(dis_feat)) / (np.max(dis_feat) - np.min(dis_feat))
@@ -141,3 +144,24 @@ class OptimizedDataSupplier:
                         best_id = i
             x_ids.append(best_id)
         return x_ids
+
+
+    def get_manipulation_info(self, manipulation):
+        manipulation = manipulation.numpy().reshape(151)
+        cut_index_np = cut_index_np = np.array(cut_index)
+        index_attributes = 0
+        result = ""
+        for ci in cut_index_np:
+            if np.any(manipulation[ci[0]:ci[1]]):
+                current_attribute_manipulation = manipulation[ci[0]:ci[1]]
+                result += "Manipulation in " + ATTRIBUTES[index_attributes] + " attribute,"
+                if -1 in current_attribute_manipulation:
+                    values = ATTRIBUTES_VALUES[index_attributes]
+                    result += " - " + values[np.where(current_attribute_manipulation == -1)[0][0]]
+                if 1 in current_attribute_manipulation:
+                    values = ATTRIBUTES_VALUES[index_attributes]
+                    result += " + " + values[np.where(current_attribute_manipulation == 1)[0][0]]
+                break
+            index_attributes += 1
+
+        return result
